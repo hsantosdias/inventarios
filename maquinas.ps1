@@ -1,5 +1,5 @@
 <#
-Inventario de Patrimonio de TI (PowerShell) - v3b PT-BR
+Inventario de Patrimonio de TI (PowerShell) - v3c PT-BR
 - Coleta: Hostname real, usuario logado, fabricante/modelo, serial BIOS, CPU, RAM, discos, GPU,
   SO, build, uptime, IP/MAC, data BIOS, bateria, BitLocker, dominio/workgroup.
 - Lista softwares instalados (x64/x86).
@@ -8,11 +8,19 @@ Inventario de Patrimonio de TI (PowerShell) - v3b PT-BR
 - Opcional: copia para \\SERVIDOR\Inventario (ajuste abaixo).
 - Prompts em PT-BR com confirmacao.
 - Adicional: arquivo TXT com o NOME DO COMPUTADOR informado pelo operador + resumo do equipamento.
+- NOVO: Pergunta USUARIO e SENHA do compartilhamento (se habilitado), usa e limpa cache/sessoes depois.
 Compatibilidade: PowerShell 5+ (Windows 10/11).
 #>
 
+
+#Set-ExecutionPolicy RemoteSigned
+
+#Set-ExecutionPolicy Unrestricted
+
 # =================== CONFIG ===================
 $SaidaRaiz                  = "C:\Temp\Inventario"
+
+# Copiar para compartilhamento
 $CopiarParaCompartilhamento = $true
 $DestinoCompartilhamento    = "\\192.168.1.101\Inventario"
 
@@ -63,6 +71,48 @@ function Calc-Meses {
   if ($months -lt 0) { $months = 0 }
   return $months
 }
+
+function Get-UncHost {
+  param([Parameter(Mandatory)][string]$UncPath)
+  # Extrai apenas o host de um caminho UNC (\\host\share\...)
+  if ($UncPath -match '^\\\\([^\\]+)') { return $matches[1] } else { return $null }
+}
+
+function Copy-WithCredentialsAndCleanup {
+  param(
+    [Parameter(Mandatory)][string]$SourcePath,
+    [Parameter(Mandatory)][string]$SharePath,
+    [Parameter(Mandatory)][System.Management.Automation.PSCredential]$Credential
+  )
+  if (-not (Test-Path $SourcePath)) { throw "Caminho de origem nao existe: $SourcePath" }
+
+  $driveName = "INV"
+  $host = Get-UncHost -UncPath $SharePath
+
+  try {
+    # Remove PSDrive antigo se houver
+    if (Get-PSDrive -Name $driveName -ErrorAction SilentlyContinue) {
+      Remove-PSDrive -Name $driveName -Force -ErrorAction SilentlyContinue
+    }
+    # Monta PSDrive temporario com credenciais
+    New-PSDrive -Name $driveName -PSProvider FileSystem -Root $SharePath -Credential $Credential -ErrorAction Stop | Out-Null
+
+    $dest = "$driveName`:"
+    Copy-Item -Path $SourcePath -Destination $dest -Recurse -Force -ErrorAction Stop
+  }
+  finally {
+    # Desmonta o PSDrive
+    if (Get-PSDrive -Name $driveName -ErrorAction SilentlyContinue) {
+      Remove-PSDrive -Name $driveName -Force -ErrorAction SilentlyContinue
+    }
+    # Encerra possiveis sessoes SMB abertas para o share
+    try { & cmd.exe /c "net use $SharePath /delete /y"  | Out-Null } catch {}
+    # Remove possivel cache de credenciais para o host (caso exista)
+    if ($host) {
+      try { & cmd.exe /c "cmdkey /delete:$host" | Out-Null } catch {}
+    }
+  }
+}
 # ==============================================
 
 # =================== PROMPTS (PT-BR + confirmacao) ===================
@@ -72,12 +122,23 @@ do {
 
   $NomeComputadorInformado = Read-Host "Nome do computador (etiqueta/operador)"
   $Patrimonio     = Read-Host "Numero do patrimonio (ex.: 2025-00123)"
-  $Local          = Read-Host "Local/Setor (ex.: Robotica / Sala 12)"
+  $Local          = Read-Host "Local/Setor (ex.: Robotica / Sala 1)"
   $Responsavel    = Read-Host "Responsavel (ex.: Maria Silva)"
   $EstadoStr      = Read-Host "Condicao geral (Novo/Bom/Regular/Ruim) [opcional]"
   $DataCompraStr  = Read-Host "Data de compra (dd/mm/aaaa) [opcional]"
   $PrecoCompraStr = Read-Host "Preco de compra (ex.: 3499,90) [opcional]"
   $Notas          = Read-Host "Observacoes [opcional]"
+
+<#   # Perguntas de credenciais do compartilhamento (se copia habilitada)
+  $UsuarioCompart = $null
+  $SenhaCompart   = $null
+  if ($CopiarParaCompartilhamento) {
+    Write-Host ""
+    Write-Host "== Credenciais do Compartilhamento =="
+    Write-Host "Destino: $DestinoCompartilhamento"
+    $UsuarioCompart = Read-Host "Usuario do compartilhamento (ex.: DOMINIO\usuario ou servidor\usuario)"
+    $SenhaCompart   = Read-Host "Senha do compartilhamento (digitacao oculta)" -AsSecureString
+  } #>
 
   # parse/normalize
   $Estado      = if ($EstadoStr) { $EstadoStr.Trim() } else { $null }
@@ -89,6 +150,8 @@ do {
   $pcText = if ($PrecoCompra) { "R$ {0:N2}" -f $PrecoCompra } else { "N/D" }
   $estadoText = if ($Estado) { $Estado } else { "N/D" }
   $notasText  = if ($Notas)  { $Notas }  else { "-" }
+  $usuarioText = if ($UsuarioCompart) { $UsuarioCompart } else { "N/D" }
+  $senhaMask   = if ($SenhaCompart) { "********" } else { "N/D" }
 
   Write-Host ""
   Write-Host "== Confirme os dados =="
@@ -100,7 +163,11 @@ do {
   Write-Host ("Data de compra     : {0}" -f $dcText)
   Write-Host ("Preco de compra    : {0}" -f $pcText)
   Write-Host ("Observacoes        : {0}" -f $notasText)
-  Write-Host ""
+ <#  if ($CopiarParaCompartilhamento) {
+    Write-Host ("Usuario p/ copia   : {0}" -f $usuarioText)
+    Write-Host ("Senha p/ copia     : {0}" -f $senhaMask)
+  }
+  Write-Host "" #>
   $confirm = Read-Host "Digite 1 para CONFIRMAR e continuar, ou 2 para REINICIAR"
 
 } while ($confirm -ne '1')
@@ -342,6 +409,7 @@ $payload | Add-Member -NotePropertyName DataCompraText -NotePropertyValue (Fmt-D
 $payload | ConvertTo-Json -Depth 6 | Out-File -FilePath $jsonPath -Encoding UTF8
 
 # ========= TXT adicional com o NOME informado (resumo curto) =========
+$rotuloPath = Join-Path $saidaDir ("{0}info.txt" -f ($NomeComputadorInformado -replace '[\\/:*?""<>|]','_'))
 $rotuloSb = New-Object System.Text.StringBuilder
 $null = $rotuloSb.AppendLine("Resumo do equipamento")
 $null = $rotuloSb.AppendLine("Gerado em: " + (Get-Date -Format "dd/MM/yyyy HH:mm:ss"))
@@ -364,6 +432,24 @@ $null = $rotuloSb.AppendLine("Valor estimado: " + ($(if ($ValorEstimado -ne $nul
 $rotuloSb.ToString() | Out-File -FilePath $rotuloPath -Encoding UTF8
 # =====================================================================
 
+<# # Copia para compartilhamento (opcional, com credenciais informadas pelo operador)
+if ($CopiarParaCompartilhamento) {
+  try {
+    if (-not $UsuarioCompart -or -not $SenhaCompart) {
+      Write-Warning "Copia para compartilhamento habilitada, mas usuario/senha nao foram informados. Pulando copia."
+    } else {
+      # Monta PSCredential a partir do que foi digitado
+      $cred = New-Object System.Management.Automation.PSCredential($UsuarioCompart, $SenhaCompart)
+      Write-Host "Tentando copiar a pasta para: $DestinoCompartilhamento"
+      Copy-WithCredentialsAndCleanup -SourcePath $saidaDir -SharePath $DestinoCompartilhamento -Credential $cred
+      Write-Host "Copia realizada para: $DestinoCompartilhamento (sessao e cache de credenciais limpos)"
+    }
+  } catch {
+    Write-Warning ("Falha ao copiar para {0}: {1}" -f $DestinoCompartilhamento, $_.Exception.Message)
+  }
+}
+ #>
+
 # Copia para compartilhamento (opcional)
 if ($CopiarParaCompartilhamento -and (Test-Path $DestinoCompartilhamento)) {
   try {
@@ -374,4 +460,3 @@ if ($CopiarParaCompartilhamento -and (Test-Path $DestinoCompartilhamento)) {
 }
 
 Write-Host "Inventario concluido. Arquivos em: $saidaDir"
-if ($CopiarParaCompartilhamento) { Write-Host "Copia tentada para: $DestinoCompartilhamento" }
