@@ -1,5 +1,5 @@
 <#
-Cadastro de Projetores (PowerShell) - Repositório de Informações - v1 PT-BR
+Cadastro de Projetores (PowerShell) - Repositório de Informações - v1b PT-BR
 - NÃO coleta dados do computador. Apenas perguntas ao operador.
 - Coleta: Identificação, patrimônio, local, responsável, estado, compra, preço, notas.
 - Específicos de projetor: marca, modelo, tipo (menu), resolução, brilho, contraste,
@@ -39,7 +39,9 @@ function Parse-Data {
   if ([string]::IsNullOrWhiteSpace($s)) { return $null }
   $dt = $null
   $formats = @("dd/MM/yyyy","d/M/yyyy","yyyy-MM-dd","dd-MM-yyyy")
-  foreach ($f in $formats) { if ([datetime]::TryParseExact($s,$f,$null,[System.Globalization.DateTimeStyles]::AssumeLocal,[ref]$dt)) { return $dt } }
+  foreach ($f in $formats) {
+    if ([datetime]::TryParseExact($s,$f,$null,[System.Globalization.DateTimeStyles]::AssumeLocal,[ref]$dt)) { return $dt }
+  }
   if ([datetime]::TryParse($s,[ref]$dt)) { return $dt }
   return $null
 }
@@ -137,7 +139,7 @@ do {
   Clear-Host
   Write-Host "== Cadastro de Projetor =="
 
-  # Identificação geral (compatível com padrão anterior)
+  # Identificação geral
   $NomeComputadorInformado = Read-Host "Nome do equipamento (etiqueta/operador)"
   $Patrimonio     = Read-Host "Número do patrimônio (ex.: 2025-00123)"
   $Local          = Read-Host "Local/Setor (ex.: Biblioteca / Sala 3)"
@@ -221,20 +223,20 @@ do {
   Write-Host ("Tipo de projetor   : {0}" -f $TipoProjetor)
   Write-Host ("Resolução          : {0}" -f $Resolucao)
   Write-Host ("Brilho (lumens)    : {0}" -f $BrilhoLumens)
-  Write-Host ("Contraste          : {0}" -f ($Contraste ? $Contraste : "N/D"))
+  Write-Host ("Contraste          : {0}" -f ($(if ($Contraste) { $Contraste } else { "N/D" })))
   Write-Host ("Fonte de luz       : {0}" -f $FonteDeLuz)
-  Write-Host ("Horas / Vida (h)   : {0} / {1}" -f ($HorasLampada ? $HorasLampada : "N/D"), ($VidaLampada ? $VidaLampada : "N/D"))
+  Write-Host ("Horas / Vida (h)   : {0} / {1}" -f ($(if ($HorasLampada) { $HorasLampada } else { "N/D" })), ($(if ($VidaLampada) { $VidaLampada } else { "N/D" })))
   Write-Host ("Entradas           : {0}" -f ($(if ($Entradas.Count) { $Entradas -join ", " } else { "N/D" })))
   Write-Host ("Conectividade      : {0}" -f ($(if ($Conectividade.Count) { $Conectividade -join ", " } else { "N/D" })))
-  Write-Host ("Voltagem           : {0}" -f ($Voltagem ? $Voltagem : "N/D"))
-  Write-Host ("Instalação         : {0}" -f ($Instalacao ? $Instalacao : "N/D"))
+  Write-Host ("Voltagem           : {0}" -f ($(if ($Voltagem) { $Voltagem } else { "N/D" })))
+  Write-Host ("Instalação         : {0}" -f ($(if ($Instalacao) { $Instalacao } else { "N/D" })))
   Write-Host ("Acessórios         : {0}" -f ($(if ($Acessorios.Count) { $Acessorios -join ", " } else { "N/D" })))
-  Write-Host ("Nº de série        : {0}" -f ($NumeroSerie ? $NumeroSerie : "N/D"))
+  Write-Host ("Nº de série        : {0}" -f ($(if ($NumeroSerie) { $NumeroSerie } else { "N/D" })))
   Write-Host ("Garantia até       : {0}" -f (Fmt-Date $GarantiaAte))
   Write-Host ("Últ. manutenção    : {0}" -f (Fmt-Date $UltManut))
   Write-Host ("Próx. manutenção   : {0}" -f (Fmt-Date $ProxManut))
-  Write-Host ("Status operacional : {0}" -f ($StatusOper ? $StatusOper : "N/D"))
-  Write-Host ("Observações        : {0}" -f ($Notas ? $Notas : "-"))
+  Write-Host ("Status operacional : {0}" -f ($(if ($StatusOper) { $StatusOper } else { "N/D" })))
+  Write-Host ("Observações        : {0}" -f ($(if ($Notas) { $Notas } else { "-" })))
 
   Write-Host ""
   $confirm = Read-Host "Digite 1 para CONFIRMAR e continuar, ou 2 para REINICIAR"
@@ -247,8 +249,8 @@ $DepreciacaoMeses = $DepreciacaoMesesPadrao
 $DataBaseIdade = $DataCompra
 $hoje = Get-Date
 if ($UsarAvaliacao -match '^[sS]') {
-  if (-not $DataBaseIdade) { $DataBaseIdade = $UltManut } # se quiser usar última manutenção como referência
-  if (-not $DataBaseIdade) { $DataBaseIdade = $hoje }     # fallback evita negativo
+  if (-not $DataBaseIdade) { $DataBaseIdade = $UltManut }
+  if (-not $DataBaseIdade) { $DataBaseIdade = $hoje }
   $MesesUso = Calc-Meses $DataBaseIdade $hoje
   if ($PrecoCompra -and $MesesUso -ne $null) {
     $deprMensal = [decimal]($PrecoCompra / $DepreciacaoMeses)
@@ -265,7 +267,6 @@ if ($UsarAvaliacao -match '^[sS]') {
 
 # =================== SAÍDA (pastas/arquivos) ===================
 $stamp    = Get-Date -Format "yyyyMMdd-HHmmss"
-# Nome da pasta no padrão solicitado (nome/modelo/data) — sem espaços
 $pastaBaseName = ("PROJETOR_{0}_{1}_{2}" -f ($Marca -replace '\s',''), ($Modelo -replace '\s',''), $stamp)
 $saidaDir = Join-Path $SaidaRaiz $pastaBaseName
 New-Item -ItemType Directory -Path $saidaDir -Force | Out-Null
@@ -331,7 +332,6 @@ $payload = [pscustomobject]@{
   PrecoCompra      = $PrecoCompra
   Observacoes      = $Notas
 
-  # “Campos compatíveis” (mantidos por similaridade)
   Hostname         = $env:COMPUTERNAME
   Usuario          = $null
   Fabricante       = $Marca
@@ -354,7 +354,6 @@ $payload = [pscustomobject]@{
   Discos           = @()
   Redes            = @()
 
-  # Específicos do projetor
   TipoProjetor     = $TipoProjetor
   Resolucao        = $Resolucao
   BrilhoLumens     = $BrilhoLumens
@@ -373,7 +372,6 @@ $payload = [pscustomobject]@{
   ProxManutencao   = $ProxManut
   StatusOperacional= $StatusOper
 
-  # Avaliação
   BaseIdade        = $DataBaseIdade
   MesesUso         = $MesesUso
   DepMesesCfg      = $DepreciacaoMeses
