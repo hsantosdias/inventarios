@@ -22,7 +22,8 @@ $SaidaRaiz                  = "C:\Temp\Inventario"
 
 # Copiar para compartilhamento
 $CopiarParaCompartilhamento = $true
-$DestinoCompartilhamento    = "\\192.168.1.101\Inventario"
+#$DestinoCompartilhamento    = "\\192.168.1.101\Inventario"
+$DestinoCompartilhamento    = "\\192.168.1.101\Dados\temp"
 
 # Parametros de avaliacao
 $DepreciacaoMesesPadrao     = 48    # 36/48/60
