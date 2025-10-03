@@ -1,5 +1,5 @@
 <#
-Cadastro de Impressoras (PowerShell) - Repositório de Informações - v1 PT-BR
+Cadastro de Impressoras (PowerShell) - Repositório de Informações - v1.1 PT-BR
 - NÃO coleta dados do computador. Apenas perguntas ao operador.
 - Coleta: Identificação geral (patrimônio, local, responsável, etc).
 - Específicos de impressora: marca/modelo, tipo (menu), cor (mono/color),
