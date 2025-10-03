@@ -1,0 +1,18 @@
+# Logs / temporários
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# Saídas geradas pelos scripts
+C:/Temp/Inventario/
+Temp/
+output/
+out/
+
+# VSCode/IDE
+.vscode/
+.idea/
+*.code-workspace

@@ -1,0 +1,31 @@
+name: PowerShell CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  ps-ci:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          Install-Module Pester -Scope CurrentUser -Force
+
+      - name: ScriptAnalyzer
+        shell: pwsh
+        run: |
+          $settings = Join-Path $PWD 'PSScriptAnalyzerSettings.psd1'
+          Invoke-ScriptAnalyzer -Path './scripts' -Settings $settings -Recurse -ErrorAction Stop
+
+      - name: Pester tests
+        shell: pwsh
+        run: |
+          Invoke-Pester -Path './tests' -CI
