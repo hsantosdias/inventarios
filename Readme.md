@@ -112,6 +112,17 @@ Se baixar os `.ps1` da internet, o Windows marca como “bloqueado”. Antes de 
 Unblock-File -Path .\scripts\*.ps1
 # e opcionalmente:
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+```
+
+**Se ainda não funcionar**
+
+Alguns Windows 11 vêm com modo restrito (“AllSigned”) aplicado por política.
+Nesse caso, apenas para rodar nessa sessão atual, use:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\inventario-ti-v5.ps1
 ```
 
 ## Contribuindo
