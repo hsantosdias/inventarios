@@ -1,6 +1,7 @@
 <#
-Cadastro de Impressoras (PowerShell) - Repositório de Informações - v1.1 PT-BR
+Cadastro de Impressoras (PowerShell) - Repositório de Informações - v1.2 PT-BR
 - NÃO coleta dados do computador. Apenas perguntas ao operador.
+- Integração: carrega "catalogo-impressoras.ps1" no cabeçalho (se existir) para pré-preencher dados.
 - Coleta: Identificação geral (patrimônio, local, responsável, etc).
 - Específicos de impressora: marca/modelo, tipo (menu), cor (mono/color),
   tamanhos de papel, duplex, bandejas, conectividade (menu), rede (IP/Máscara/GW/MAC/host),
@@ -24,6 +25,27 @@ $DestinoCompartilhamento    = "\\192.168.1.101\Dados\temp"
 $DepreciacaoMesesPadrao     = 48    # 36/48/60
 $PisoResidualPercentual     = 0.15  # 15%
 # ==============================================
+
+# ============ IMPORTA CATÁLOGO (se existir) ============
+$CatalogoLoaded = $false
+try {
+  $CatalogoPath = Join-Path $PSScriptRoot 'catalogo-impressoras.ps1'
+  if (-not (Test-Path $CatalogoPath)) {
+    # fallback: tentar na pasta scripts ao lado
+    $CatalogoPathAlt = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\catalogo-impressoras.ps1'
+    if (Test-Path $CatalogoPathAlt) { $CatalogoPath = $CatalogoPathAlt }
+  }
+  if (Test-Path $CatalogoPath) {
+    . $CatalogoPath
+    $CatalogoLoaded = $true
+    Write-Host "Catálogo carregado: $CatalogoPath" -ForegroundColor DarkCyan
+  } else {
+    Write-Host "Catálogo 'catalogo-impressoras.ps1' não encontrado (seguindo sem catálogo)..." -ForegroundColor DarkYellow
+  }
+} catch {
+  Write-Warning "Falha ao carregar catálogo: $($_.Exception.Message)"
+}
+# =======================================================
 
 # =================== FUNÇÕES ===================
 function Try-Get { param([scriptblock]$Block) try { & $Block } catch { $null } }
@@ -97,6 +119,11 @@ function Copy-WithCredentialsAndCleanup {
   }
 }
 # ==============================================
+# ================== Script personal ==================
+# Função para substituir valores nulos ou vazios por um padrão
+function Nz([object]$v, [string]$default = "N/D") {
+    if ($null -ne $v -and "$v" -ne "") { $v } else { $default }
+}
 
 # =================== MENUS =====================
 $TiposImpressora = [ordered]@{
@@ -152,6 +179,39 @@ $CorOptions = [ordered]@{
 }
 # ==============================================
 
+# ======== PRÉ-PREENCHIMENTO PELO CATÁLOGO =========
+# As variáveis a seguir podem ser preenchidas pelo catálogo antes do loop de prompts.
+$Marca = $null; $Modelo = $null; $TipoImpressora = $null; $TipoCor = $null; $Duplex = $null
+
+if ($CatalogoLoaded -and $CatalogoContagem -and $CatalogoImpressoras) {
+  Write-Host ""
+  Write-Host "== Catálogo rápido (opcional) ==" -ForegroundColor Cyan
+  $usarCat = Read-Host "Deseja carregar marca/modelo/tipo do catálogo? (S/N)"
+  if ($usarCat -match '^[sS]') {
+    $idx = 0
+    $opcoes = $CatalogoContagem | Sort-Object Marca,Modelo | ForEach-Object {
+      $idx++; [pscustomobject]@{ Id=$idx; Marca=$_.Marca; Modelo=$_.Modelo; Qtde=$_.Qtde }
+    }
+    $opcoes | Format-Table Id,Marca,Modelo,Qtde -AutoSize
+    $sel = Read-Host "Informe o Id (ou Enter para pular)"
+    if ($sel -match '^\d+$') {
+      $escolha = $opcoes | Where-Object { $_.Id -eq [int]$sel }
+      if ($escolha) {
+        $preset = Get-ModeloDoCatalogo -Marca $escolha.Marca -Modelo $escolha.Modelo
+        if ($preset) {
+          $Marca          = $preset.Marca
+          $Modelo         = $preset.Modelo
+          $TipoImpressora = $preset.TipoImpressora
+          $TipoCor        = $preset.TipoCor
+          $Duplex         = $preset.Duplex
+          Write-Host "Pré-preenchido: $Marca / $Modelo ($TipoImpressora, $TipoCor, $Duplex)" -ForegroundColor Green
+        }
+      }
+    }
+  }
+}
+# ================================================
+
 # =================== PROMPTS (PT-BR + confirmação) ===================
 do {
   Clear-Host
@@ -167,28 +227,35 @@ do {
   $PrecoCompraStr  = Read-Host "Preço de compra (ex.: 1299,90) [opcional]"
   $Notas           = Read-Host "Observações [opcional]"
 
-  # Específicos da impressora
-  $Marca           = Read-Host "Marca (ex.: HP, Brother, Epson, Canon)"
-  $Modelo          = Read-Host "Modelo (ex.: M404dn, L3250)"
+  # Específicos da impressora (pré-preenchido pelo catálogo quando disponível)
+  if (-not $Marca)  { $Marca  = Read-Host "Marca (ex.: HP, Brother, Epson, Canon)" }
+  if (-not $Modelo) { $Modelo = Read-Host "Modelo (ex.: M404dn, L3250)" }
   $NumeroSerie     = Read-Host "Número de série [opcional]"
 
-  Write-Host ""
-  Write-Host "Tipo de impressora:"
-  $TiposImpressora.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | % { Write-Host $_ }
-  $TipoSel         = Read-Host "Escolha o tipo (número)"
-  $TipoImpressora  = $TiposImpressora[[int]$TipoSel]
+  # Tipo / Cor / Duplex podem vir do catálogo, senão pergunta
+  if (-not $TipoImpressora) {
+    Write-Host ""
+    Write-Host "Tipo de impressora:"
+    $TiposImpressora.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | % { Write-Host $_ }
+    $TipoSel         = Read-Host "Escolha o tipo (número)"
+    $TipoImpressora  = $TiposImpressora[[int]$TipoSel]
+  }
 
-  Write-Host ""
-  Write-Host "Cor:"
-  $CorOptions.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | % { Write-Host $_ }
-  $CorSel          = Read-Host "1=Monocromática, 2=Colorida"
-  $TipoCor         = $CorOptions[[int]$CorSel]
+  if (-not $TipoCor) {
+    Write-Host ""
+    Write-Host "Cor:"
+    $CorOptions.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | % { Write-Host $_ }
+    $CorSel          = Read-Host "1=Monocromática, 2=Colorida"
+    $TipoCor         = $CorOptions[[int]$CorSel]
+  }
 
-  Write-Host ""
-  Write-Host "Duplex:"
-  $DuplexOptions.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | % { Write-Host $_ }
-  $DuplexSel       = Read-Host "1=Automático, 2=Manual, 3=Sem duplex"
-  $Duplex          = $DuplexOptions[[int]$DuplexSel]
+  if (-not $Duplex) {
+    Write-Host ""
+    Write-Host "Duplex:"
+    $DuplexOptions.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | % { Write-Host $_ }
+    $DuplexSel       = Read-Host "1=Automático, 2=Manual, 3=Sem duplex"
+    $Duplex          = $DuplexOptions[[int]$DuplexSel]
+  }
 
   Write-Host ""
   Write-Host "Tamanhos de papel suportados (múltiplos separados por vírgula):"
@@ -351,7 +418,9 @@ $null = $sb.AppendLine("Hostname / MAC: " + ($(if ($HostRede) { $HostRede } else
 $null = $sb.AppendLine("Fila no servidor: " + ($(if ($FilaServidor) { $FilaServidor } else { "N/D" })))
 $null = $sb.AppendLine("Versão do driver: " + ($(if ($DriverVersao) { $DriverVersao } else { "N/D" })))
 $null = $sb.AppendLine("Contadores (Tot/PB/Cor): " + ($(if ($PaginasTotais) { $PaginasTotais } else { "N/D" })) + " / " + ($(if ($PaginasPB) { $PaginasPB } else { "N/D" })) + " / " + ($(if ($PaginasCor) { $PaginasCor } else { "N/D" })))
-$null = $sb.AppendLine("Toner K/C/M/Y (%): " + ($(if ($TonerK) { $TonerK } else { "N/D" })) + "/" + ($(if ($TonerC) { $TonerC } else { "N/D" })) + "/" + ($(if ($TonerM) { $TonerM } else { "N/D" })) + "/" + ($(if ($TonerY) { $TonerY } else { "N/D" })))
+#$null = $sb.AppendLine("Toner K/C/M/Y (%): " + ($(if ($TonerK) { $TonerK } else { "N/D" }))) + "/" + ($(if ($TonerC) { $TonerC } else { "N/D" })) + "/" + ($(if ($TonerM) { $TonerM } else { "N/D" })) + "/" + ($(if ($TonerY) { $TonerY } else { "N/D" }))
+$tonerText = "Toner K/C/M/Y (%): {0}/{1}/{2}/{3}" -f (Nz $TonerK), (Nz $TonerC), (Nz $TonerM), (Nz $TonerY)
+$null = $sb.AppendLine($tonerText)
 $null = $sb.AppendLine("Drum K (%): " + ($(if ($DrumK) { $DrumK } else { "N/D" })))
 $null = $sb.AppendLine("Ciclo mensal máximo: " + ($(if ($CicloMensalMax) { $CicloMensalMax } else { "N/D" })))
 $null = $sb.AppendLine("Bandejas: " + ($(if ($Bandejas) { $Bandejas } else { "N/D" })))
