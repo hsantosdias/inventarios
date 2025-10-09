@@ -1,16 +1,14 @@
 <#
-Cadastro de Projetores (PowerShell) - Repositório de Informações - v1b PT-BR
+Cadastro de Projetores (PowerShell) - Repositório de Informações - v2 PT-BR
 - NÃO coleta dados do computador. Apenas perguntas ao operador.
+- Integração: tenta carregar "catalogo-projetores.ps1" (se existir) para pré-preencher dados.
 - Coleta: Identificação, patrimônio, local, responsável, estado, compra, preço, notas.
-- Específicos de projetor: marca, modelo, tipo (menu), resolução, brilho, contraste,
+- Específicos: marca, modelo, tipo (menu ou catálogo), resolução, brilho, contraste,
   fonte de luz, horas de lâmpada/vida, entradas (menu), conectividade (menu),
-  voltagem, instalação, acessórios, n° de série, garantia, manutenção (última/próxima),
-  status operacional.
-- Avaliação por depreciação linear (opcional, como no script anterior).
-- Saída: TXT detalhado, JSON compatível com padrão anterior (chaves semelhantes),
-  TXT curto com nome informado, e um TXT "nome-modelo-data".
-- Opcional: cópia para compartilhamento SMB com usuário/senha informados e
-  limpeza de sessão/cache de credenciais.
+  voltagem, instalação, acessórios, n° de série, garantia, manutenção (últ/próx), status.
+- Avaliação por depreciação linear (opcional).
+- Saída: TXT detalhado, JSON (compatível com seus padrões), TXT curto, TXT “PROJETOR_MARCA_MODELO_DATA”.
+- Opcional: cópia para compartilhamento SMB com usuário/senha e limpeza de sessão/cache.
 
 Compatibilidade: PowerShell 5+ (Windows 10/11)
 #>
@@ -20,7 +18,6 @@ $SaidaRaiz                  = "C:\Temp\Inventario"
 
 # Copiar para compartilhamento
 $CopiarParaCompartilhamento = $true
-#$DestinoCompartilhamento    = "\\192.168.1.101\Inventario"
 $DestinoCompartilhamento    = "\\192.168.1.101\Dados\temp"
 
 # Parâmetros de avaliação
@@ -28,12 +25,111 @@ $DepreciacaoMesesPadrao     = 48    # 36/48/60
 $PisoResidualPercentual     = 0.15  # 15%
 # ==============================================
 
+
+# ============ IMPORTA CATÁLOGO (se existir) ============
+$CatalogoLoaded = $false
+$CatalogoProjetores = $null
+
+try {
+  $CatalogoPath = Join-Path $PSScriptRoot 'catalogo-projetores.ps1'
+  if (-not (Test-Path $CatalogoPath)) {
+    $CatalogoPathAlt = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\catalogo-projetores.ps1'
+    if (Test-Path $CatalogoPathAlt) { $CatalogoPath = $CatalogoPathAlt }
+  }
+  if (Test-Path $CatalogoPath) {
+    . $CatalogoPath
+    if ($CatalogoProjetores) {
+      $CatalogoLoaded = $true
+      Write-Host "Catálogo de projetores carregado: $CatalogoPath" -ForegroundColor DarkCyan
+    }
+  } else {
+    Write-Host "Catálogo 'catalogo-projetores.ps1' não encontrado (usando catálogo interno)..." -ForegroundColor DarkYellow
+  }
+} catch {
+  Write-Warning "Falha ao carregar catálogo: $($_.Exception.Message)"
+}
+
+# Catálogo interno (fallback) com os modelos solicitados
+if (-not $CatalogoLoaded) {
+  $CatalogoProjetores = @(
+    # EPSON (LCD / 3LCD)
+    [pscustomobject]@{ Marca="Epson"; Modelo="S41+"; Descricao="PROJETOR XGA X41+ BR 3600 EPSON"; TipoProjetor="LCD"; ResolucaoSug=$null; BrilhoSug=3600; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="Epson"; Modelo="S8+";  Descricao="Epson S8+";                            TipoProjetor="LCD"; ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="Epson"; Modelo="S12+"; Descricao="Epson S12+";                           TipoProjetor="LCD"; ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="Epson"; Modelo="S18+"; Descricao="Epson S18+";                           TipoProjetor="LCD"; ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="Epson"; Modelo="S31+"; Descricao="Epson S31+";                           TipoProjetor="LCD"; ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+
+    # BENQ (DLP)
+    [pscustomobject]@{ Marca="BenQ";  Modelo="MS550"; Descricao="Projetor BenQ MS550 SVGA 3600 Ansi";   TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=3600; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="BenQ";  Modelo="MX611"; Descricao="PROJETOR XGA MX611 BR 4000 BENQ";     TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=4000; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="BenQ";  Modelo="MS531"; Descricao="PROJETOR SVGA MS531 BR 3300 BENQ";    TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=3300; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+    [pscustomobject]@{ Marca="BenQ";  Modelo="MX560"; Descricao="PROJETOR XGA MX560 IM 4000";          TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=4000; ContrasteSug=$null; FonteDeLuz="Lâmpada" }
+  )
+}
+
+function Get-CatalogoProjetores {
+  $i = 0
+  $CatalogoProjetores | ForEach-Object {
+    $i++
+    [pscustomobject]@{
+      Id           = $i
+      Marca        = $_.Marca
+      Modelo       = $_.Modelo
+      Descricao    = $_.Descricao
+      TipoProjetor = $_.TipoProjetor
+      ResolucaoSug = $_.ResolucaoSug
+      BrilhoSug    = $_.BrilhoSug
+      ContrasteSug = $_.ContrasteSug
+      FonteDeLuz   = $_.FonteDeLuz
+    }
+  }
+}
+
+function Get-ModeloDoCatalogo {
+  param(
+    [Parameter(Mandatory)][string]$Marca,
+    [Parameter(Mandatory)][string]$Modelo
+  )
+  $m = $CatalogoProjetores |
+       Where-Object { $_.Marca -ieq $Marca -and $_.Modelo -ieq $Modelo } |
+       Select-Object -First 1
+  if (-not $m) { return $null }
+  [pscustomobject]@{
+    Marca        = $m.Marca
+    Modelo       = $m.Modelo
+    TipoProjetor = $m.TipoProjetor
+    Resolucao    = $m.ResolucaoSug
+    BrilhoLumens = $m.BrilhoSug
+    Contraste    = $m.ContrasteSug
+    FonteDeLuz   = $m.FonteDeLuz
+  }
+}
+
+function Select-ModeloDoCatalogo {
+  $lista = Get-CatalogoProjetores | Sort-Object Marca, Modelo
+  if (-not $lista) { return $null }
+
+  Write-Host ""
+  Write-Host "== Catálogo de Projetores ==" -ForegroundColor Cyan
+  $lista | Format-Table Id,Marca,Modelo,Descricao,TipoProjetor,BrilhoSug -AutoSize
+  Write-Host ""
+  $sel = Read-Host "Digite o Id do modelo (ou 0 para 'Outro modelo')"
+
+  if ($sel -match '^\s*0\s*$') { return $null }
+  if ($sel -notmatch '^\d+$') { return $null }
+
+  $escolha = $lista | Where-Object { $_.Id -eq [int]$sel } | Select-Object -First 1
+  if (-not $escolha) { return $null }
+
+  return (Get-ModeloDoCatalogo -Marca $escolha.Marca -Modelo $escolha.Modelo)
+}
+# ========================================================
+
+
 # =================== FUNÇÕES ===================
 function Try-Get { param([scriptblock]$Block) try { & $Block } catch { $null } }
-
-function Fmt-Date($d) {
-  if ($d) { $d.ToString("dd/MM/yyyy HH:mm:ss") } else { "N/D" }
-}
+function Fmt-Date($d) { if ($d) { $d.ToString("dd/MM/yyyy HH:mm:ss") } else { "N/D" } }
+function Nz([object]$v, [string]$default = "N/D") { if ($null -ne $v -and "$v" -ne "") { $v } else { $default } }
 
 function Parse-Data {
   param([string]$s)
@@ -52,7 +148,7 @@ function Parse-Preco {
   if ([string]::IsNullOrWhiteSpace($s)) { return $null }
   $clean = ($s -replace '[^\d,.\-]','').Trim()
   if ($clean -match ',\d{1,2}$' -and $clean -match '\.') { $clean = $clean -replace '\.','' -replace ',','.' }
-  elseif ($clean -match ',\d{1,2}$') { $clean = $clean -replace ',','.' }
+  elseif ($clean -match ',\d{1,2}$')                   { $clean = $clean -replace ',','.' }
   [decimal]$v = $null
   if ([decimal]::TryParse($clean,[ref]$v)) { return $v } else { return $null }
 }
@@ -66,10 +162,7 @@ function Calc-Meses {
   return $months
 }
 
-function Get-UncHost {
-  param([Parameter(Mandatory)][string]$UncPath)
-  if ($UncPath -match '^\\\\([^\\]+)') { return $matches[1] } else { return $null }
-}
+function Get-UncHost { param([Parameter(Mandatory)][string]$UncPath) if ($UncPath -match '^\\\\([^\\]+)') { return $matches[1] } else { return $null } }
 
 function Copy-WithCredentialsAndCleanup {
   param(
@@ -87,7 +180,6 @@ function Copy-WithCredentialsAndCleanup {
       Remove-PSDrive -Name $driveName -Force -ErrorAction SilentlyContinue
     }
     New-PSDrive -Name $driveName -PSProvider FileSystem -Root $SharePath -Credential $Credential -ErrorAction Stop | Out-Null
-
     $dest = "$driveName`:"
     Copy-Item -Path $SourcePath -Destination $dest -Recurse -Force -ErrorAction Stop
   }
@@ -102,6 +194,7 @@ function Copy-WithCredentialsAndCleanup {
   }
 }
 # ==============================================
+
 
 # =================== MENUS =====================
 $TiposProjetor = [ordered]@{
@@ -135,6 +228,7 @@ $ConectividadeOptions = [ordered]@{
 }
 # ==============================================
 
+
 # =================== PROMPTS (PT-BR + confirmação) ===================
 do {
   Clear-Host
@@ -150,21 +244,45 @@ do {
   $PrecoCompraStr = Read-Host "Preço de compra (ex.: 3499,90) [opcional]"
   $Notas          = Read-Host "Observações [opcional]"
 
-  # Dados específicos do projetor
-  $Marca          = Read-Host "Marca do projetor (ex.: Epson, BenQ, Optoma)"
-  $Modelo         = Read-Host "Modelo do projetor (ex.: EB-X05)"
+  # ======== PRÉ-PREENCHIMENTO PELO CATÁLOGO (opcional) =========
+  $Marca = $null; $Modelo = $null; $TipoProjetor = $null; $Resolucao = $null; $BrilhoLumens = $null; $Contraste = $null; $FonteDeLuz = $null
+  if ($CatalogoProjetores -and $CatalogoProjetores.Count -gt 0) {
+    $usarCat = Read-Host "Deseja selecionar um modelo do catálogo? (S/N)"
+    if ($usarCat -match '^[sS]') {
+      $preset = Select-ModeloDoCatalogo
+      if ($preset) {
+        $Marca        = $preset.Marca
+        $Modelo       = $preset.Modelo
+        if ($preset.TipoProjetor) { $TipoProjetor = $preset.TipoProjetor }
+        if ($preset.Resolucao)    { $Resolucao    = $preset.Resolucao }
+        if ($preset.BrilhoLumens) { $BrilhoLumens = $preset.BrilhoLumens }
+        if ($preset.Contraste)    { $Contraste    = $preset.Contraste }
+        if ($preset.FonteDeLuz)   { $FonteDeLuz   = $preset.FonteDeLuz }
+        Write-Host ("Pré-preenchido: {0} / {1} {2}" -f $Marca, $Modelo, ($(if ($TipoProjetor) { "[$TipoProjetor]" } else { "" }))) -ForegroundColor Green
+      } else {
+        Write-Host "Outro modelo (preenchimento manual)." -ForegroundColor Yellow
+      }
+    }
+  }
+
+  # Dados específicos (pergunta somente o que ainda falta)
+  if (-not $Marca)        { $Marca        = Read-Host "Marca do projetor (ex.: Epson, BenQ, Optoma)" }
+  if (-not $Modelo)       { $Modelo       = Read-Host "Modelo do projetor (ex.: EB-X05)" }
   $NumeroSerie    = Read-Host "Número de série [opcional]"
 
-  Write-Host ""
-  Write-Host "Tipos de projetor:"
-  $TiposProjetor.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | ForEach-Object { Write-Host $_ }
-  $TipoSel        = Read-Host "Escolha o tipo (número, ex.: 1=LCD, 4=Laser)"
-  $TipoProjetor   = $TiposProjetor[[int]$TipoSel]
+  if (-not $TipoProjetor) {
+    Write-Host ""
+    Write-Host "Tipos de projetor:"
+    $TiposProjetor.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0,2}) {1}" -f $_.Key, $_.Value } | ForEach-Object { Write-Host $_ }
+    $TipoSel        = Read-Host "Escolha o tipo (número, ex.: 1=LCD, 2=DLP, 4=Laser)"
+    $TipoProjetor   = $TiposProjetor[[int]$TipoSel]
+  }
 
-  $Resolucao      = Read-Host "Resolução nativa (ex.: 1024x768, 1280x800, 1920x1080)"
-  $BrilhoLumens   = Read-Host "Brilho (ANSI lumens) [ex.: 3300]"
-  $Contraste      = Read-Host "Contraste (ex.: 15000:1) [opcional]"
-  $FonteDeLuz     = Read-Host "Fonte de luz (Lâmpada/Laser/LED/Outro)"
+  if (-not $Resolucao)    { $Resolucao    = Read-Host "Resolução nativa (ex.: 1024x768, 1280x800, 1920x1080)" }
+  if (-not $BrilhoLumens) { $BrilhoLumens = Read-Host "Brilho (ANSI lumens) [ex.: 3600]" }
+  if (-not $Contraste)    { $Contraste    = Read-Host "Contraste (ex.: 15000:1) [opcional]" }
+  if (-not $FonteDeLuz)   { $FonteDeLuz   = Read-Host "Fonte de luz (Lâmpada/Laser/LED/Outro)" }
+
   $HorasLampada   = Read-Host "Horas de lâmpada/fonte já utilizadas [opcional]"
   $VidaLampada    = Read-Host "Vida útil estimada da lâmpada/fonte (horas) [opcional]"
 
@@ -207,9 +325,9 @@ do {
   $ProxManut   = Parse-Data $ProxManutStr
 
   # Pré-visualização
-  $dcText = if ($DataCompra) { Fmt-Date $DataCompra } else { "N/D" }
+  $dcText = Nz (Fmt-Date $DataCompra)
   $pcText = if ($PrecoCompra) { "R$ {0:N2}" -f $PrecoCompra } else { "N/D" }
-  $estadoText = if ($Estado) { $Estado } else { "N/D" }
+  $estadoText = Nz $Estado
 
   Write-Host ""
   Write-Host "== Confirme os dados =="
@@ -224,25 +342,26 @@ do {
   Write-Host ("Tipo de projetor   : {0}" -f $TipoProjetor)
   Write-Host ("Resolução          : {0}" -f $Resolucao)
   Write-Host ("Brilho (lumens)    : {0}" -f $BrilhoLumens)
-  Write-Host ("Contraste          : {0}" -f ($(if ($Contraste) { $Contraste } else { "N/D" })))
+  Write-Host ("Contraste          : {0}" -f (Nz $Contraste))
   Write-Host ("Fonte de luz       : {0}" -f $FonteDeLuz)
-  Write-Host ("Horas / Vida (h)   : {0} / {1}" -f ($(if ($HorasLampada) { $HorasLampada } else { "N/D" })), ($(if ($VidaLampada) { $VidaLampada } else { "N/D" })))
+  Write-Host ("Horas / Vida (h)   : {0} / {1}" -f (Nz $HorasLampada), (Nz $VidaLampada))
   Write-Host ("Entradas           : {0}" -f ($(if ($Entradas.Count) { $Entradas -join ", " } else { "N/D" })))
   Write-Host ("Conectividade      : {0}" -f ($(if ($Conectividade.Count) { $Conectividade -join ", " } else { "N/D" })))
-  Write-Host ("Voltagem           : {0}" -f ($(if ($Voltagem) { $Voltagem } else { "N/D" })))
-  Write-Host ("Instalação         : {0}" -f ($(if ($Instalacao) { $Instalacao } else { "N/D" })))
+  Write-Host ("Voltagem           : {0}" -f (Nz $Voltagem))
+  Write-Host ("Instalação         : {0}" -f (Nz $Instalacao))
   Write-Host ("Acessórios         : {0}" -f ($(if ($Acessorios.Count) { $Acessorios -join ", " } else { "N/D" })))
-  Write-Host ("Nº de série        : {0}" -f ($(if ($NumeroSerie) { $NumeroSerie } else { "N/D" })))
+  Write-Host ("Nº de série        : {0}" -f (Nz $NumeroSerie))
   Write-Host ("Garantia até       : {0}" -f (Fmt-Date $GarantiaAte))
   Write-Host ("Últ. manutenção    : {0}" -f (Fmt-Date $UltManut))
   Write-Host ("Próx. manutenção   : {0}" -f (Fmt-Date $ProxManut))
-  Write-Host ("Status operacional : {0}" -f ($(if ($StatusOper) { $StatusOper } else { "N/D" })))
-  Write-Host ("Observações        : {0}" -f ($(if ($Notas) { $Notas } else { "-" })))
+  Write-Host ("Status operacional : {0}" -f (Nz $StatusOper))
+  Write-Host ("Observações        : {0}" -f (Nz $Notas, "-"))
 
   Write-Host ""
   $confirm = Read-Host "Digite 1 para CONFIRMAR e continuar, ou 2 para REINICIAR"
 } while ($confirm -ne '1')
 # =====================================================================
+
 
 # =================== AVALIAÇÃO (opcional) ===================
 $ValorEstimado = $null
@@ -266,61 +385,62 @@ if ($UsarAvaliacao -match '^[sS]') {
 }
 # ============================================================
 
+
 # =================== SAÍDA (pastas/arquivos) ===================
-$stamp    = Get-Date -Format "yyyyMMdd-HHmmss"
+$stamp        = Get-Date -Format "yyyyMMdd-HHmmss"
 $pastaBaseName = ("PROJETOR_{0}_{1}_{2}" -f ($Marca -replace '\s',''), ($Modelo -replace '\s',''), $stamp)
-$saidaDir = Join-Path $SaidaRaiz $pastaBaseName
+$saidaDir     = Join-Path $SaidaRaiz $pastaBaseName
 New-Item -ItemType Directory -Path $saidaDir -Force | Out-Null
 
 $hostName = $env:COMPUTERNAME
 $txtPath   = Join-Path $saidaDir ("{0}_resumo.txt"    -f $hostName)
 $jsonPath  = Join-Path $saidaDir ("{0}_sistema.json"  -f $hostName)
-$csvPath   = Join-Path $saidaDir ("{0}_softwares.csv" -f $hostName) # mantido por compatibilidade (vazio)
+$csvPath   = Join-Path $saidaDir ("{0}_softwares.csv" -f $hostName) # compatibilidade (vazio)
 
-# TXT detalhado (PT-BR)
+# TXT detalhado
 $sb = New-Object System.Text.StringBuilder
 $null = $sb.AppendLine("==== Cadastro de Projetor ====")
 $null = $sb.AppendLine("Data/Hora: " + (Get-Date -Format "dd/MM/yyyy HH:mm:ss"))
-$null = $sb.AppendLine("Nome informado: $NomeComputadorInformado")
-$null = $sb.AppendLine("Patrimônio: $Patrimonio")
-$null = $sb.AppendLine("Local/Setor: $Local")
-$null = $sb.AppendLine("Responsável: $Responsavel")
-$null = $sb.AppendLine("Condição: " + ($(if ($Estado) { $Estado } else { "N/D" })))
-$null = $sb.AppendLine("Preço de compra: " + ($(if ($PrecoCompra) { ("R$ {0:N2}" -f $PrecoCompra) } else { "N/D" })))
-$null = $sb.AppendLine("Data de compra: " + (Fmt-Date $DataCompra))
-$null = $sb.AppendLine("Observações: " + ($(if ($Notas) { $Notas } else { "-" })))
+$null = $sb.AppendLine(("Nome informado: {0}" -f $NomeComputadorInformado))
+$null = $sb.AppendLine(("Patrimônio: {0}" -f $Patrimonio))
+$null = $sb.AppendLine(("Local/Setor: {0}" -f $Local))
+$null = $sb.AppendLine(("Responsável: {0}" -f $Responsavel))
+$null = $sb.AppendLine(("Condição: {0}" -f (Nz $Estado)))
+$null = $sb.AppendLine(("Preço de compra: {0}" -f ($(if ($PrecoCompra) { "R$ {0:N2}" -f $PrecoCompra } else { "N/D" }))))
+$null = $sb.AppendLine(("Data de compra: {0}" -f (Fmt-Date $DataCompra)))
+$null = $sb.AppendLine(("Observações: {0}" -f (Nz $Notas, "-")))
 $null = $sb.AppendLine("")
-$null = $sb.AppendLine("Marca/Modelo: $Marca / $Modelo")
-$null = $sb.AppendLine("Tipo de projetor: $TipoProjetor")
-$null = $sb.AppendLine("Resolução nativa: $Resolucao")
-$null = $sb.AppendLine("Brilho (ANSI lumens): $BrilhoLumens")
-$null = $sb.AppendLine("Contraste: " + ($(if ($Contraste) { $Contraste } else { "N/D" })))
-$null = $sb.AppendLine("Fonte de luz: $FonteDeLuz")
-$null = $sb.AppendLine("Horas usadas / Vida (h): " + ($(if ($HorasLampada) { $HorasLampada } else { "N/D" }) + " / " + ($(if ($VidaLampada) { $VidaLampada } else { "N/D" }))))
-$null = $sb.AppendLine("Entradas: " + ($(if ($Entradas.Count) { $Entradas -join ", " } else { "N/D" })))
-$null = $sb.AppendLine("Conectividade: " + ($(if ($Conectividade.Count) { $Conectividade -join ", " } else { "N/D" })))
-$null = $sb.AppendLine("Voltagem: " + ($(if ($Voltagem) { $Voltagem } else { "N/D" })))
-$null = $sb.AppendLine("Instalação: " + ($(if ($Instalacao) { $Instalacao } else { "N/D" })))
-$null = $sb.AppendLine("Acessórios: " + ($(if ($Acessorios.Count) { $Acessorios -join ", " } else { "N/D" })))
-$null = $sb.AppendLine("Número de série: " + ($(if ($NumeroSerie) { $NumeroSerie } else { "N/D" })))
-$null = $sb.AppendLine("Garantia até: " + (Fmt-Date $GarantiaAte))
-$null = $sb.AppendLine("Última manutenção: " + (Fmt-Date $UltManut))
-$null = $sb.AppendLine("Próxima manutenção: " + (Fmt-Date $ProxManut))
-$null = $sb.AppendLine("Status operacional: " + ($(if ($StatusOper) { $StatusOper } else { "N/D" })))
+$null = $sb.AppendLine(("Marca/Modelo: {0} / {1}" -f $Marca, $Modelo))
+$null = $sb.AppendLine(("Tipo de projetor: {0}" -f $TipoProjetor))
+$null = $sb.AppendLine(("Resolução nativa: {0}" -f $Resolucao))
+$null = $sb.AppendLine(("Brilho (ANSI lumens): {0}" -f $BrilhoLumens))
+$null = $sb.AppendLine(("Contraste: {0}" -f (Nz $Contraste)))
+$null = $sb.AppendLine(("Fonte de luz: {0}" -f $FonteDeLuz))
+$null = $sb.AppendLine(("Horas usadas / Vida (h): {0} / {1}" -f (Nz $HorasLampada), (Nz $VidaLampada)))
+$null = $sb.AppendLine(("Entradas: {0}" -f ($(if ($Entradas.Count) { $Entradas -join ", " } else { "N/D" }))))
+$null = $sb.AppendLine(("Conectividade: {0}" -f ($(if ($Conectividade.Count) { $Conectividade -join ", " } else { "N/D" }))))
+$null = $sb.AppendLine(("Voltagem: {0}" -f (Nz $Voltagem)))
+$null = $sb.AppendLine(("Instalação: {0}" -f (Nz $Instalacao)))
+$null = $sb.AppendLine(("Acessórios: {0}" -f ($(if ($Acessorios.Count) { $Acessorios -join ", " } else { "N/D" }))))
+$null = $sb.AppendLine(("Número de série: {0}" -f (Nz $NumeroSerie)))
+$null = $sb.AppendLine(("Garantia até: {0}" -f (Fmt-Date $GarantiaAte)))
+$null = $sb.AppendLine(("Última manutenção: {0}" -f (Fmt-Date $UltManut)))
+$null = $sb.AppendLine(("Próxima manutenção: {0}" -f (Fmt-Date $ProxManut)))
+$null = $sb.AppendLine(("Status operacional: {0}" -f (Nz $StatusOper)))
 $null = $sb.AppendLine("")
 $null = $sb.AppendLine("== Avaliação (estimativa) ==")
-$null = $sb.AppendLine("  Base para idade: " + ($(if ($DataBaseIdade) { (Fmt-Date $DataBaseIdade) } else { "N/D" })))
-$null = $sb.AppendLine("  Meses de uso: " + ($(if ($MesesUso -ne $null) { $MesesUso } else { "N/D" })))
-$null = $sb.AppendLine("  Depreciação (meses): $DepreciacaoMeses")
-$null = $sb.AppendLine("  Piso residual: $([int]($PisoResidualPercentual*100))%")
-$null = $sb.AppendLine("  Valor estimado: " + ($(if ($ValorEstimado -ne $null) { "R$ {0:N2}" -f $ValorEstimado } else { "N/D" })))
+$null = $sb.AppendLine(("  Base para idade: {0}" -f (Nz (Fmt-Date $DataBaseIdade))))
+$null = $sb.AppendLine(("  Meses de uso: {0}" -f ($(if ($MesesUso -ne $null) { $MesesUso } else { "N/D" }))))
+$null = $sb.AppendLine(("  Depreciação (meses): {0}" -f $DepreciacaoMeses))
+$null = $sb.AppendLine(("  Piso residual: {0}%" -f ([int]($PisoResidualPercentual*100))))
+$null = $sb.AppendLine(("  Valor estimado: {0}" -f ($(if ($ValorEstimado -ne $null) { "R$ {0:N2}" -f $ValorEstimado } else { "N/D" }))))
 
 $sb.ToString() | Out-File -FilePath $txtPath -Encoding UTF8
 
 # CSV (compatibilidade; vazio)
 @() | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $csvPath
 
-# JSON estruturado (similar ao padrão anterior)
+# JSON estruturado
 $payload = [pscustomobject]@{
   Timestamp        = Get-Date
   TipoEquipamento  = "Projetor"
@@ -386,28 +506,29 @@ $payload | Add-Member -NotePropertyName ProxManutText   -NotePropertyValue (Fmt-
 
 $payload | ConvertTo-Json -Depth 6 | Out-File -FilePath $jsonPath -Encoding UTF8
 
-# ========= TXT adicional com o NOME informado (resumo curto) =========
+# ========= TXT adicional (resumo curto) =========
 $rotuloPath = Join-Path $saidaDir ("{0}info.txt" -f ($NomeComputadorInformado -replace '[\\/:*?""<>|]','_'))
 $rotuloSb = New-Object System.Text.StringBuilder
 $null = $rotuloSb.AppendLine("Resumo do equipamento (Projetor)")
 $null = $rotuloSb.AppendLine("Gerado em: " + (Get-Date -Format "dd/MM/yyyy HH:mm:ss"))
 $null = $rotuloSb.AppendLine("")
-$null = $rotuloSb.AppendLine("Nome (operador): $NomeComputadorInformado")
-$null = $rotuloSb.AppendLine("Marca/Modelo: $Marca / $Modelo")
-$null = $rotuloSb.AppendLine("Tipo: $TipoProjetor")
-$null = $rotuloSb.AppendLine("Resolução: $Resolucao")
-$null = $rotuloSb.AppendLine("Brilho: $BrilhoLumens lumens")
-$null = $rotuloSb.AppendLine("Entradas: " + ($(if ($Entradas.Count) { $Entradas -join ", " } else { "N/D" })))
-$null = $rotuloSb.AppendLine("Conectividade: " + ($(if ($Conectividade.Count) { $Conectividade -join ", " } else { "N/D" })))
-$null = $rotuloSb.AppendLine("Local: $Local")
-$null = $rotuloSb.AppendLine("Responsável: $Responsavel")
-$null = $rotuloSb.AppendLine("Valor estimado: " + ($(if ($ValorEstimado -ne $null) { "R$ {0:N2}" -f $ValorEstimado } else { "N/D" })))
+$null = $rotuloSb.AppendLine(("Nome (operador): {0}" -f $NomeComputadorInformado))
+$null = $rotuloSb.AppendLine(("Marca/Modelo: {0} / {1}" -f $Marca, $Modelo))
+$null = $rotuloSb.AppendLine(("Tipo: {0}" -f $TipoProjetor))
+$null = $rotuloSb.AppendLine(("Resolução: {0}" -f $Resolucao))
+$null = $rotuloSb.AppendLine(("Brilho: {0} lumens" -f $BrilhoLumens))
+$null = $rotuloSb.AppendLine(("Entradas: {0}" -f ($(if ($Entradas.Count) { $Entradas -join ", " } else { "N/D" }))))
+$null = $rotuloSb.AppendLine(("Conectividade: {0}" -f ($(if ($Conectividade.Count) { $Conectividade -join ", " } else { "N/D" }))))
+$null = $rotuloSb.AppendLine(("Local: {0}" -f $Local))
+$null = $rotuloSb.AppendLine(("Responsável: {0}" -f $Responsavel))
+$null = $rotuloSb.AppendLine(("Valor estimado: {0}" -f ($(if ($ValorEstimado -ne $null) { "R$ {0:N2}" -f $ValorEstimado } else { "N/D" }))))
 $rotuloSb.ToString() | Out-File -FilePath $rotuloPath -Encoding UTF8
 
 # ===== TXT “nome-modelo-data” (rótulo rápido) =====
 $rotuloRapido = Join-Path $saidaDir ("PROJETOR_{0}_{1}_{2}.txt" -f ($Marca -replace '\s',''), ($Modelo -replace '\s',''), (Get-Date -Format "yyyyMMdd"))
-"PROJETOR: $Marca $Modelo`r`nLocal: $Local`r`nPatrimônio: $Patrimonio" | Out-File -FilePath $rotuloRapido -Encoding UTF8
+("PROJETOR: {0} {1}`r`nLocal: {2}`r`nPatrimônio: {3}" -f $Marca, $Modelo, $Local, $Patrimonio) | Out-File -FilePath $rotuloRapido -Encoding UTF8
 # =====================================================================
+
 
 # =================== CÓPIA PARA COMPARTILHAMENTO =====================
 $DesejaCopiar = if ($CopiarParaCompartilhamento) { Read-Host "Deseja copiar para $DestinoCompartilhamento ? (S/N)" } else { "N" }
