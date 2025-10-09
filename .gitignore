@@ -16,3 +16,7 @@ out/
 .vscode/
 .idea/
 *.code-workspace
+
+py\notas
+py\saida_nf
+
