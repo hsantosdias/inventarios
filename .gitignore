@@ -17,6 +17,6 @@ out/
 .idea/
 *.code-workspace
 
-py\notas
-py\saida_nf
+py/notas/
+py/saida_nf/
 
