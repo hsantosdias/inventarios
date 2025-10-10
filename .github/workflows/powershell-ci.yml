@@ -17,7 +17,8 @@ jobs:
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
-          Install-Module Pester -Scope CurrentUser -Force
+          Install-Module Pester -Scope CurrentUser -Force -RequiredVersion 4.10.1
+          Import-Module Pester -RequiredVersion 4.10.1
 
       - name: ScriptAnalyzer
         shell: pwsh
@@ -25,7 +26,11 @@ jobs:
           $settings = Join-Path $PWD 'PSScriptAnalyzerSettings.psd1'
           Invoke-ScriptAnalyzer -Path './scripts' -Settings $settings -Recurse -ErrorAction Stop
 
-      - name: Pester tests
+      - name: Pester tests (v4)
         shell: pwsh
         run: |
-          Invoke-Pester -Path './tests' -CI
+          # Opcional: log de debug pra garantir paths no CI
+          Write-Host "PWD:" $PWD
+          Get-ChildItem -Name
+
+          Invoke-Pester -Path './tests' -Verbose -EnableExit
