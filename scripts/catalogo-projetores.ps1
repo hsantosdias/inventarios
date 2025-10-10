@@ -1,50 +1,28 @@
 # catalogo-projetores.ps1
 # Catálogo de modelos de projetores usados para pré-preenchimento no cadastro
 # Compatível com PowerShell 5+
-# Dica: Epson = LCD (3LCD); BenQ = DLP. Especificações não preenchidas ficam $null para o operador informar.
 
 # ========= DADOS DO CATÁLOGO =========
+# Observações:
+# - Qtde = 1 para todos os modelos (ajuste livre, se quiser consolidar por modelo).
+# - Campos *_Sug são sugestões para pré-preencher o formulário.
+
 $CatalogoProjetores = @(
   # ---------- EPSON (LCD / 3LCD) ----------
-  [pscustomobject]@{
-    Marca        = "Epson"
-    Modelo       = "S41+"
-    Descricao    = "PROJETOR XGA X41+ BR 3600 EPSON"
-    TipoProjetor = "LCD"           # segura para Epson
-    ResolucaoSug = $null           # ex.: "1024x768" se quiser preencher depois
-    BrilhoSug    = 3600
-    ContrasteSug = $null
-    FonteDeLuz   = "Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="Epson"; Modelo="S8+";  Descricao="Epson S8+";  TipoProjetor="LCD";  ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="Epson"; Modelo="S12+"; Descricao="Epson S12+"; TipoProjetor="LCD";  ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="Epson"; Modelo="S18+"; Descricao="Epson S18+"; TipoProjetor="LCD";  ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="Epson"; Modelo="S31+"; Descricao="Epson S31+"; TipoProjetor="LCD";  ResolucaoSug=$null; BrilhoSug=$null; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
+  [pscustomobject]@{ Marca="Epson"; Modelo="S41+"; Descricao="PowerLite X41+ | XGA 1024x768 | 3600 lm | até 15.000:1"; TipoProjetor="LCD"; ResolucaoSug="1024x768"; BrilhoSug=3600; ContrasteSug="15000:1"; FonteDeLuz="Lâmpada"; VidaLampSug="6000/10000"; DataCompraSug="26/07/2021"; PrecoCompraSug="2996,53"; Qtde=1 }
+  [pscustomobject]@{ Marca="Epson"; Modelo="S8+";  Descricao="PowerLite S8+ | SVGA 800x600 | 2500 lm | 2000:1";        TipoProjetor="LCD"; ResolucaoSug="800x600";  BrilhoSug=2500; ContrasteSug="2000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="4000/5000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
+  [pscustomobject]@{ Marca="Epson"; Modelo="S12+"; Descricao="PowerLite S12+ | SVGA 800x600 | 2800 lm";                 TipoProjetor="LCD"; ResolucaoSug="800x600";  BrilhoSug=2800; ContrasteSug=$null;      FonteDeLuz="Lâmpada"; VidaLampSug="4000/5000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
+  [pscustomobject]@{ Marca="Epson"; Modelo="S18+"; Descricao="PowerLite S18+ | SVGA 800x600 | 3000 lm | até 10.000:1";  TipoProjetor="LCD"; ResolucaoSug="800x600";  BrilhoSug=3000; ContrasteSug="10000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="5000/6000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
+  [pscustomobject]@{ Marca="Epson"; Modelo="S31+"; Descricao="PowerLite S31+ | SVGA 800x600 | 3200 lm | até 15.000:1"; TipoProjetor="LCD"; ResolucaoSug="800x600";  BrilhoSug=3200; ContrasteSug="15000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="5000/10000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
 
   # ---------- BENQ (DLP) ----------
-  [pscustomobject]@{
-    Marca="BenQ"; Modelo="MS550"; Descricao="Projetor BenQ MS550 SVGA 3600 Ansi"; TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=3600; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="BenQ"; Modelo="MX611"; Descricao="PROJETOR XGA MX611 BR 4000 BENQ";   TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=4000; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="BenQ"; Modelo="MS531"; Descricao="PROJETOR SVGA MS531 BR 3300 BENQ";  TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=3300; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
-  [pscustomobject]@{
-    Marca="BenQ"; Modelo="MX560"; Descricao="PROJETOR XGA MX560 IM 4000";        TipoProjetor="DLP"; ResolucaoSug=$null; BrilhoSug=4000; ContrasteSug=$null; FonteDeLuz="Lâmpada"
-  }
+  [pscustomobject]@{ Marca="BenQ";  Modelo="MS550"; Descricao="MS550 | SVGA 800x600 | 3600 lm | 20000:1";               TipoProjetor="DLP"; ResolucaoSug="800x600";  BrilhoSug=3600; ContrasteSug="20000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="5000/10000/15000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
+  [pscustomobject]@{ Marca="BenQ";  Modelo="MX611"; Descricao="MX611 | XGA 1024x768 | 4000 lm | 20000:1";               TipoProjetor="DLP"; ResolucaoSug="1024x768"; BrilhoSug=4000; ContrasteSug="20000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="4000/8000/10000/15000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
+  [pscustomobject]@{ Marca="BenQ";  Modelo="MS531"; Descricao="MS531 | SVGA 800x600 | 3300 lm | 15000:1";               TipoProjetor="DLP"; ResolucaoSug="800x600";  BrilhoSug=3300; ContrasteSug="15000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="4500/6000/10000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
+  [pscustomobject]@{ Marca="BenQ";  Modelo="MX560"; Descricao="MX560 | XGA 1024x768 | 4000 lm | 20000:1";               TipoProjetor="DLP"; ResolucaoSug="1024x768"; BrilhoSug=4000; ContrasteSug="20000:1";  FonteDeLuz="Lâmpada"; VidaLampSug="até 15000"; DataCompraSug=$null; PrecoCompraSug=$null; Qtde=1 }
 )
 
-# ========= FUNÇÕES DE APOIO =========
+# ========= FUNÇÕES =========
 
 function Get-CatalogoProjetores {
   <#
@@ -58,12 +36,16 @@ function Get-CatalogoProjetores {
       Id           = $i
       Marca        = $_.Marca
       Modelo       = $_.Modelo
+      Qtde         = $_.Qtde
       Descricao    = $_.Descricao
       TipoProjetor = $_.TipoProjetor
       ResolucaoSug = $_.ResolucaoSug
       BrilhoSug    = $_.BrilhoSug
       ContrasteSug = $_.ContrasteSug
       FonteDeLuz   = $_.FonteDeLuz
+      VidaLampSug  = $_.VidaLampSug
+      DataCompraSug= $_.DataCompraSug
+      PrecoCompraSug=$_.PrecoCompraSug
     }
   }
 }
@@ -71,10 +53,8 @@ function Get-CatalogoProjetores {
 function Get-ModeloDoCatalogo {
   <#
     .SYNOPSIS
-      Busca um item do catálogo por marca/modelo (case-insensitive).
-    .OUTPUTS
-      PSCustomObject com campos: Marca, Modelo, TipoProjetor, Resolucao, BrilhoLumens, Contraste, FonteDeLuz
-      (apenas os que existirem; demais ficam $null para o operador completar no formulário)
+      Busca um item do catálogo por marca/modelo (case-insensitive) e retorna
+      os campos prontos para preencher o formulário.
   #>
   param(
     [Parameter(Mandatory)][string]$Marca,
@@ -85,39 +65,46 @@ function Get-ModeloDoCatalogo {
        Select-Object -First 1
   if (-not $m) { return $null }
 
-  # Normaliza nomes de campos para encaixar no script de cadastro
   [pscustomobject]@{
     Marca          = $m.Marca
     Modelo         = $m.Modelo
-    TipoProjetor   = $m.TipoProjetor      # ex.: "LCD" ou "DLP" (combina com seu menu)
-    Resolucao      = $m.ResolucaoSug      # pode vir $null para o operador preencher
+    TipoProjetor   = $m.TipoProjetor
+    Resolucao      = $m.ResolucaoSug
     BrilhoLumens   = $m.BrilhoSug
     Contraste      = $m.ContrasteSug
     FonteDeLuz     = $m.FonteDeLuz
+    VidaLampada    = $m.VidaLampSug
+    DataCompraSug  = $m.DataCompraSug
+    PrecoCompraSug = $m.PrecoCompraSug
   }
 }
 
-function Select-ModeloDoCatalogo {
+function Show-CatalogoRapido {
   <#
     .SYNOPSIS
-      Mostra um menu de seleção do catálogo e retorna o preset escolhido.
-    .DESCRIPTION
-      Inclui a opção 0 = Outro modelo (preenchimento manual).
+      Mostra a listagem compacta: Id, Marca, Modelo, Qtde
+  #>
+  $lista = Get-CatalogoProjetores | Sort-Object Marca, Modelo
+  if (-not $lista) { return }
+  Write-Host ""
+  Write-Host "== Catálogo rápido (opcional) ==" -ForegroundColor Cyan
+  $lista | Select-Object Id,Marca,Modelo,Qtde | Format-Table -AutoSize
+  Write-Host ""
+}
+
+function Select-ModeloDoCatalogoRapido {
+  <#
+    .SYNOPSIS
+      Exibe o catálogo rápido e pergunta o Id. Enter pula.
   #>
   $lista = Get-CatalogoProjetores | Sort-Object Marca, Modelo
   if (-not $lista) { return $null }
 
-  Write-Host ""
-  Write-Host "== Catálogo de Projetores ==" -ForegroundColor Cyan
-  $lista | Format-Table Id,Marca,Modelo,Descricao,TipoProjetor,BrilhoSug -AutoSize
-  Write-Host ""
-  $sel = Read-Host "Digite o Id do modelo (ou 0 para 'Outro modelo')"
-
-  if ($sel -match '^\s*0\s*$') {
-    return $null  # deixa para o operador digitar tudo manualmente
-  }
-
+  Show-CatalogoRapido
+  $sel = Read-Host "Informe o Id (ou Enter para pular)"
+  if ([string]::IsNullOrWhiteSpace($sel)) { return $null }
   if ($sel -notmatch '^\d+$') { return $null }
+
   $escolha = $lista | Where-Object { $_.Id -eq [int]$sel } | Select-Object -First 1
   if (-not $escolha) { return $null }
 
