@@ -17,9 +17,9 @@ jobs:
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
-          Install-Module Pester -Scope CurrentUser -Force -RequiredVersion 4.10.1
-          Import-Module Pester -RequiredVersion 4.10.1
-
+          Install-Module Pester -Scope CurrentUser
+          Import-Module Pester -RequiredVersion
+          
       - name: ScriptAnalyzer
         shell: pwsh
         run: |
